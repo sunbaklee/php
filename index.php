@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>PHP</title>
+    <title>PHPq</title>
   </head>
   <body>
 <?php
