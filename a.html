@@ -30,40 +30,57 @@
 </head>
 <body>
 
-    <div class="label">🌍 World Clock API 연동 (한국 시간)</div>
-    <div id="clock">시간을 불러오는 중...</div>
+    <div class="label">🌍 오차 보정 웹 시계 (한국 시간)</div>
+    <div id="clock">시간을 동기화하는 중...</div>
 
     <script>
-        async function fetchServerTime() {
+        let timeOffset = 0;   // 서버와 내 기기의 시간 오차를 저장할 변수
+        let isSynced = false; // 동기화 완료 여부 확인
+
+        async function syncServerTime() {
             try {
-                // 1. World Clock API에 세계 표준시(UTC)를 요청합니다.
-                // (주의: 이 API는 https가 아닌 http로만 통신합니다)
+                // 1. 처음 딱 한 번만 서버 시간을 가져옵니다.
                 const response = await fetch('http://worldclockapi.com/api/json/utc/now');
                 const data = await response.json();
                 
-                // 2. World Clock API는 시간을 'currentDateTime'이라는 이름으로 줍니다.
-                // 데이터 예시: "2023-10-27T14:30Z" 
-                const dateTimeString = data.currentDateTime;
+                // 2. 서버 시간과 라즈베리 파이(내 기기) 시간의 밀리초(ms) 단위 차이를 계산합니다.
+                const serverTimeMs = new Date(data.currentDateTime).getTime();
+                const localTimeMs = new Date().getTime();
                 
-                // 3. 받아온 UTC 표준시를 자바스크립트 Date 객체로 만듭니다.
-                const dateObj = new Date(dateTimeString);
-                
-                // 4. 한국 시간(Asia/Seoul) 기준으로 보기 좋게 문자로 바꿉니다.
-                const timeString = dateObj.toLocaleTimeString('ko-KR', { 
-                    timeZone: 'Asia/Seoul',
-                    hour12: false // 24시간제로 표시하려면 true를 false로 변경
-                });
-
-                document.getElementById('clock').innerText = timeString;
+                timeOffset = serverTimeMs - localTimeMs;
+                isSynced = true; // 동기화 완료!
 
             } catch (error) {
-                console.error("서버에서 시간을 가져오는데 실패했습니다.", error);
+                console.error("시간 동기화 실패:", error);
                 document.getElementById('clock').innerText = "통신 오류";
             }
         }
 
-        fetchServerTime();
-        setInterval(fetchServerTime, 1000);
+        function updateClock() {
+            // 서버와 동기화가 끝났을 때만 시계를 움직입니다.
+            if (isSynced) {
+                // 핵심! 라즈베리 파이 시간에 '오차'를 더해서 항상 정확한 시간을 만들어냅니다.
+                const realTimeMs = new Date().getTime() + timeOffset;
+                const realTime = new Date(realTimeMs);
+
+                // 한국 시간으로 보기 좋게 문자열 변환
+                const timeString = realTime.toLocaleTimeString('ko-KR', { 
+                    timeZone: 'Asia/Seoul',
+                    hour12: false // 24시간제
+                });
+
+                document.getElementById('clock').innerText = timeString;
+            }
+        }
+
+        // 1. 페이지가 열리면 즉시 서버와 시간 동기화를 시도합니다.
+        syncServerTime();
+
+        // 2. 서버 통신 없이, 내 기기에서 1초(1000ms)마다 시계 화면만 업데이트합니다.
+        setInterval(updateClock, 1000);
+        
+        // (선택) 혹시 모를 누적 오차를 대비해 1시간(3600000ms)마다 한 번씩만 서버와 재동기화
+        setInterval(syncServerTime, 3600000); 
     </script>
 
 </body>
